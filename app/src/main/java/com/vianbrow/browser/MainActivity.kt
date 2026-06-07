@@ -26,8 +26,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.material3.pulltorefresh.PullToRefreshContainer
-import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -74,8 +72,6 @@ fun MainScreen() {
     var showSitePanel by remember { mutableStateOf(false) }
     var showSiteConfig by remember { mutableStateOf(false) }
     
-    val pullToRefreshState = rememberPullToRefreshState()
-    
     val context = LocalContext.current
     val activity = context as? ComponentActivity
 
@@ -89,13 +85,6 @@ fun MainScreen() {
         } else {
             VianbrowLogger.i("WebView", "WebView: no back history")
             activity?.finish()
-        }
-    }
-
-    if (pullToRefreshState.isRefreshing) {
-        LaunchedEffect(true) {
-            VianbrowLogger.i("WebView", "WebView: pull to refresh")
-            webViewRef?.reload()
         }
     }
 
@@ -173,7 +162,6 @@ fun MainScreen() {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .nestedScroll(pullToRefreshState.nestedScrollConnection)
         ) {
             BrowserWebView(
                 onWebViewCreated = { webViewRef = it },
@@ -186,7 +174,6 @@ fun MainScreen() {
                 onPageFinished = { url ->
                     currentUrl = if (url == "about:blank") "" else url
                     isLoading = false
-                    pullToRefreshState.endRefresh()
                     VianbrowLogger.i("WebView", "WebView: loaded [$url]")
                 },
                 onTitleChanged = { title ->
@@ -195,21 +182,12 @@ fun MainScreen() {
                 onProgressChanged = { progress ->
                     if (progress == 100) {
                         isLoading = false
-                        pullToRefreshState.endRefresh()
                     }
                 },
                 onReceivedError = { url, description ->
                     VianbrowLogger.e("WebView", "WebView: failed [$url] error:[$description]")
                     isLoading = false
-                    pullToRefreshState.endRefresh()
                 }
-            )
-            
-            PullToRefreshContainer(
-                state = pullToRefreshState,
-                modifier = Modifier.align(Alignment.TopCenter),
-                containerColor = Color.DarkGray,
-                contentColor = Color.White
             )
         }
     }
@@ -476,7 +454,11 @@ fun BrowserWebView(
     AndroidView(
         modifier = modifier.fillMaxSize(),
         factory = { context ->
-            WebView(context).apply {
+            val swipeRefreshLayout = androidx.swiperefreshlayout.widget.SwipeRefreshLayout(context).apply {
+                setColorSchemeColors(android.graphics.Color.WHITE)
+                setProgressBackgroundColorSchemeColor(android.graphics.Color.DKGRAY)
+            }
+            val webView = WebView(context).apply {
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
                 
@@ -500,6 +482,7 @@ fun BrowserWebView(
                     
                     override fun onPageFinished(view: WebView?, url: String?) {
                         super.onPageFinished(view, url)
+                        swipeRefreshLayout.isRefreshing = false
                         url?.let { onPageFinished(it) }
                     }
 
@@ -519,6 +502,12 @@ fun BrowserWebView(
                 onWebViewCreated(this)
                 loadUrl(initialUrl)
             }
+            swipeRefreshLayout.addView(webView)
+            swipeRefreshLayout.setOnRefreshListener {
+                VianbrowLogger.i("WebView", "WebView: pull to refresh")
+                webView.reload()
+            }
+            swipeRefreshLayout
         },
         update = { webView ->
             // Keep reference updated if needed
