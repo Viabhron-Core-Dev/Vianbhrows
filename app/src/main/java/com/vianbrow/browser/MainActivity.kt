@@ -153,7 +153,7 @@ fun MainScreen() {
                     Toast.makeText(context, "Tab manager coming soon", Toast.LENGTH_SHORT).show()
                 },
                 onMenu = {
-                    Toast.makeText(context, "Menu coming soon", Toast.LENGTH_SHORT).show()
+                    context.startActivity(android.content.Intent(context, SettingsActivity::class.java))
                 },
                 onSwipeRight = {
                     if (webViewRef?.canGoBack() == true) {
@@ -253,7 +253,7 @@ fun MainScreen() {
     }
 }
 
-fun processUrlInput(input: String): String {
+fun processUrlInput(input: String, context: android.content.Context): String {
     val trimmed = input.trim()
     if (trimmed.isBlank()) return "about:blank"
     
@@ -268,8 +268,14 @@ fun processUrlInput(input: String): String {
     }
     
     // Treat as search query
+    val prefs = context.getSharedPreferences("vianbrow_settings", android.content.Context.MODE_PRIVATE)
+    val engine = prefs.getString("setting_search_engine", "google")
     val encoded = java.net.URLEncoder.encode(trimmed, "UTF-8")
-    return "https://www.google.com/search?q=$encoded"
+    return when (engine) {
+        "duckduckgo" -> "https://duckduckgo.com/?q=$encoded"
+        "bing" -> "https://www.bing.com/search?q=$encoded"
+        else -> "https://www.google.com/search?q=$encoded"
+    }
 }
 
 @Composable
@@ -286,6 +292,7 @@ fun AddressBar(
     var text by remember(isEditing, url) { mutableStateOf(if (isEditing) url else (title.takeIf { it.isNotBlank() } ?: url)) }
     val focusManager = LocalFocusManager.current
     val focusRequester = remember { FocusRequester() }
+    val context = LocalContext.current
 
     Row(
         modifier = Modifier
@@ -329,7 +336,7 @@ fun AddressBar(
                         onGo = {
                             focusManager.clearFocus()
                             isEditing = false
-                            val finalUrl = processUrlInput(text)
+                            val finalUrl = processUrlInput(text, context)
                             onNavigate(finalUrl)
                         }
                     ),
