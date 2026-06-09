@@ -35,6 +35,11 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.TextStyle
@@ -149,6 +154,18 @@ fun MainScreen() {
                 },
                 onMenu = {
                     Toast.makeText(context, "Menu coming soon", Toast.LENGTH_SHORT).show()
+                },
+                onSwipeRight = {
+                    if (webViewRef?.canGoBack() == true) {
+                        webViewRef?.goBack()
+                        VianbrowLogger.i("WebView", "WebView: swipe back")
+                    }
+                },
+                onSwipeLeft = {
+                    if (webViewRef?.canGoForward() == true) {
+                        webViewRef?.goForward()
+                        VianbrowLogger.i("WebView", "WebView: swipe forward")
+                    }
                 }
             )
         },
@@ -236,6 +253,25 @@ fun MainScreen() {
     }
 }
 
+fun processUrlInput(input: String): String {
+    val trimmed = input.trim()
+    if (trimmed.isBlank()) return "about:blank"
+    
+    // Already a full URL
+    if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+        return trimmed
+    }
+    
+    // Looks like a URL (contains a dot and no spaces)
+    if (trimmed.contains(".") && !trimmed.contains(" ")) {
+        return "https://$trimmed"
+    }
+    
+    // Treat as search query
+    val encoded = java.net.URLEncoder.encode(trimmed, "UTF-8")
+    return "https://www.google.com/search?q=$encoded"
+}
+
 @Composable
 fun AddressBar(
     url: String,
@@ -293,10 +329,7 @@ fun AddressBar(
                         onGo = {
                             focusManager.clearFocus()
                             isEditing = false
-                            var finalUrl = text
-                            if (finalUrl.isNotBlank() && !finalUrl.startsWith("http://") && !finalUrl.startsWith("https://")) {
-                                finalUrl = "https://$finalUrl"
-                            }
+                            val finalUrl = processUrlInput(text)
                             onNavigate(finalUrl)
                         }
                     ),
@@ -340,40 +373,73 @@ fun BottomNavBar(
     onForward: () -> Unit,
     onHome: () -> Unit,
     onTabCounter: () -> Unit,
-    onMenu: () -> Unit
+    onMenu: () -> Unit,
+    onSwipeRight: () -> Unit,
+    onSwipeLeft: () -> Unit
 ) {
-    Row(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
             .background(Color.Black)
             .windowInsetsPadding(WindowInsets.navigationBars)
-            .padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceEvenly,
-        verticalAlignment = Alignment.CenterVertically
     ) {
-        IconButton(onClick = onBack) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
-        }
-        IconButton(onClick = onForward) {
-            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Forward", tint = Color.White)
-        }
-        IconButton(onClick = onHome) {
-            Icon(Icons.Default.Home, contentDescription = "Home", tint = Color.White)
-        }
-        IconButton(onClick = onTabCounter) {
-            Box(
-                modifier = Modifier
-                    .size(24.dp)
-                    .clip(RoundedCornerShape(4.dp))
-                    .border(2.dp, Color.White, RoundedCornerShape(4.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("1", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+            }
+            IconButton(onClick = onForward) {
+                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Forward", tint = Color.White)
+            }
+            IconButton(onClick = onHome) {
+                Icon(Icons.Default.Home, contentDescription = "Home", tint = Color.White)
+            }
+            IconButton(onClick = onTabCounter) {
+                Box(
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .border(2.dp, Color.White, RoundedCornerShape(4.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("1", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+            IconButton(onClick = onMenu) {
+                Icon(Icons.Default.Menu, contentDescription = "Menu", tint = Color.White)
             }
         }
-        IconButton(onClick = onMenu) {
-            Icon(Icons.Default.Menu, contentDescription = "Menu", tint = Color.White)
-        }
+
+        // Transparent swipe detection layer — sits on top but passes taps through
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .pointerInput(Unit) {
+                    var startX = 0f
+                    var startY = 0f
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        startX = down.position.x
+                        startY = down.position.y
+                        var endX = startX
+                        do {
+                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                            event.changes.forEach { endX = it.position.x }
+                        } while (event.changes.any { it.pressed })
+                        val deltaX = endX - startX
+                        val threshold = 80.dp.toPx()
+                        if (kotlin.math.abs(deltaX) > threshold) {
+                            if (deltaX > 0) onSwipeRight()
+                            else onSwipeLeft()
+                        }
+                    }
+                }
+        )
     }
 }
 
