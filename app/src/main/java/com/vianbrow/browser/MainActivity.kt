@@ -153,7 +153,9 @@ fun MainScreen() {
                     Toast.makeText(context, "Tab manager coming soon", Toast.LENGTH_SHORT).show()
                 },
                 onMenu = {
-                    context.startActivity(android.content.Intent(context, SettingsActivity::class.java))
+                    val intent = android.content.Intent(context, SettingsActivity::class.java)
+                    intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                    context.startActivity(intent)
                 },
                 onSwipeRight = {
                     if (webViewRef?.canGoBack() == true) {
