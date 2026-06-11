@@ -437,7 +437,7 @@ fun BottomNavBar(
                         startY = down.position.y
                         var endX = startX
                         do {
-                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                            val event = awaitPointerEvent(PointerEventPass.Final)
                             event.changes.forEach { endX = it.position.x }
                         } while (event.changes.any { it.pressed })
                         val deltaX = endX - startX
