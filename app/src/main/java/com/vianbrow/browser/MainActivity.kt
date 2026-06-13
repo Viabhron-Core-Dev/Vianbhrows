@@ -80,6 +80,18 @@ fun MainScreen() {
     val context = LocalContext.current
     val activity = context as? ComponentActivity
 
+    val qrScanLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            val scanned = result.data?.getStringExtra("SCAN_RESULT")
+            scanned?.let {
+                webViewRef?.loadUrl(processUrlInput(it, context))
+                VianbrowLogger.i("QR", "QR: scanned [$scanned]")
+            }
+        }
+    }
+
     BackHandler {
         if (showSiteConfig) {
             showSiteConfig = false
@@ -119,6 +131,15 @@ fun MainScreen() {
                     onSitePanelClick = {
                         showSitePanel = true
                         VianbrowLogger.i("SitePanel", "SitePanel: opened for [$currentUrl]")
+                    },
+                    onQrScan = {
+                        try {
+                            val intent = android.content.Intent("com.google.zxing.client.android.SCAN")
+                            intent.putExtra("SCAN_MODE", "QR_CODE_MODE")
+                            qrScanLauncher.launch(intent)
+                        } catch (e: android.content.ActivityNotFoundException) {
+                            Toast.makeText(context, "No QR scanner app found", Toast.LENGTH_SHORT).show()
+                        }
                     }
                 )
                 if (isLoading) {
@@ -153,9 +174,9 @@ fun MainScreen() {
                     Toast.makeText(context, "Tab manager coming soon", Toast.LENGTH_SHORT).show()
                 },
                 onMenu = {
-                    val intent = android.content.Intent(context, SettingsActivity::class.java)
-                    intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                    context.startActivity(intent)
+                    activity?.startActivity(
+                        android.content.Intent(activity, SettingsActivity::class.java)
+                    )
                 },
                 onSwipeRight = {
                     if (webViewRef?.canGoBack() == true) {
@@ -288,7 +309,8 @@ fun AddressBar(
     onNavigate: (String) -> Unit,
     onStopLoading: () -> Unit,
     onReload: () -> Unit,
-    onSitePanelClick: () -> Unit
+    onSitePanelClick: () -> Unit,
+    onQrScan: () -> Unit
 ) {
     var isEditing by remember { mutableStateOf(false) }
     var text by remember(isEditing, url) { mutableStateOf(if (isEditing) url else (title.takeIf { it.isNotBlank() } ?: url)) }
@@ -304,8 +326,20 @@ fun AddressBar(
         verticalAlignment = Alignment.CenterVertically
     ) {
         IconButton(onClick = onSitePanelClick) {
-            val icon = if (url.startsWith("https")) Icons.Default.Lock else if (url.isBlank() || url == "about:blank") Icons.Default.Info else Icons.Default.Warning
-            Icon(icon, contentDescription = "Site Info", tint = Color.LightGray)
+            val icon = when {
+                url.isBlank() || url == "about:blank" -> Icons.Default.Search
+                url.startsWith("https://") -> Icons.Default.CheckCircle
+                else -> Icons.Default.Warning
+            }
+            Icon(
+                icon,
+                contentDescription = "Site Info",
+                tint = when {
+                    url.startsWith("https://") -> Color(0xFF4CAF50)
+                    url.isBlank() || url == "about:blank" -> Color.LightGray
+                    else -> Color(0xFFFFA000)
+                }
+            )
         }
         
         Box(
@@ -356,22 +390,27 @@ fun AddressBar(
             }
         }
         
-        if (isLoading || isEditing) {
-            IconButton(onClick = {
-                if (isEditing) {
-                    text = ""
-                } else {
-                    onStopLoading()
+        when {
+            isLoading -> {
+                IconButton(onClick = onStopLoading) {
+                    Icon(Icons.Default.Close, contentDescription = "Stop", tint = Color.LightGray)
                 }
-            }) {
-                Icon(Icons.Default.Close, contentDescription = "Stop or Clear", tint = Color.LightGray)
             }
-        } else if (url.isNotBlank() && url != "about:blank") {
-            IconButton(onClick = onReload) {
-                Icon(Icons.Default.Refresh, contentDescription = "Reload", tint = Color.LightGray)
+            isEditing -> {
+                IconButton(onClick = { text = "" }) {
+                    Icon(Icons.Default.Close, contentDescription = "Clear", tint = Color.LightGray)
+                }
             }
-        } else {
-            Spacer(modifier = Modifier.width(48.dp))
+            url.isBlank() || url == "about:blank" -> {
+                IconButton(onClick = onQrScan) {
+                    Icon(Icons.Default.QrCodeScanner, contentDescription = "Scan QR", tint = Color.LightGray)
+                }
+            }
+            else -> {
+                IconButton(onClick = onReload) {
+                    Icon(Icons.Default.Refresh, contentDescription = "Reload", tint = Color.LightGray)
+                }
+            }
         }
     }
 }
