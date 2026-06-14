@@ -403,7 +403,7 @@ fun AddressBar(
             }
             url.isBlank() || url == "about:blank" -> {
                 IconButton(onClick = onQrScan) {
-                    Icon(Icons.Default.CropFree, contentDescription = "Scan QR", tint = Color.LightGray)
+                    Icon(Icons.Default.Search, contentDescription = "Scan QR", tint = Color.LightGray)
                 }
             }
             else -> {
@@ -608,7 +608,11 @@ fun BrowserWebView(
                         super.onReceivedError(view, request, error)
                         if (request?.isForMainFrame == true) {
                             val errorUrl = request.url?.toString() ?: ""
-                            val description = error?.description?.toString() ?: "Unknown error"
+                            val description = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                                error?.description?.toString() ?: "Unknown error"
+                            } else {
+                                "Unknown error"
+                            }
                             onReceivedError(errorUrl, description)
                         }
                     }
