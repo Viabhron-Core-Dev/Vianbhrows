@@ -174,9 +174,14 @@ fun MainScreen() {
                     Toast.makeText(context, "Tab manager coming soon", Toast.LENGTH_SHORT).show()
                 },
                 onMenu = {
-                    activity?.startActivity(
-                        android.content.Intent(activity, SettingsActivity::class.java)
-                    )
+                    if (activity != null) {
+                        VianbrowLogger.i("Settings", "Settings: menu button tapped")
+                        activity.startActivity(
+                            android.content.Intent(activity, SettingsActivity::class.java)
+                        )
+                    } else {
+                        VianbrowLogger.i("Settings", "Settings: activity is null")
+                    }
                 },
                 onSwipeRight = {
                     if (webViewRef?.canGoBack() == true) {
