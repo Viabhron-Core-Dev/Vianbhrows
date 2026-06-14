@@ -403,7 +403,7 @@ fun AddressBar(
             }
             url.isBlank() || url == "about:blank" -> {
                 IconButton(onClick = onQrScan) {
-                    Icon(Icons.Default.QrCodeScanner, contentDescription = "Scan QR", tint = Color.LightGray)
+                    Icon(Icons.Default.CropFree, contentDescription = "Scan QR", tint = Color.LightGray)
                 }
             }
             else -> {
