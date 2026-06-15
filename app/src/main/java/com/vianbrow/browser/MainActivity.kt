@@ -435,6 +435,20 @@ fun BottomNavBar(
         modifier = Modifier
             .fillMaxWidth()
             .background(Color.Black)
+            .pointerInput(Unit) {
+                var totalDrag = 0f
+                detectHorizontalDragGestures(
+                    onDragStart = { totalDrag = 0f },
+                    onHorizontalDrag = { _, dragAmount -> totalDrag += dragAmount },
+                    onDragEnd = {
+                        val threshold = 80.dp.toPx()
+                        if (kotlin.math.abs(totalDrag) > threshold) {
+                            if (totalDrag > 0) onSwipeRight()
+                            else onSwipeLeft()
+                        }
+                    }
+                )
+            }
             .windowInsetsPadding(WindowInsets.navigationBars)
     ) {
         Row(
@@ -468,32 +482,6 @@ fun BottomNavBar(
                 Icon(Icons.Default.Menu, contentDescription = "Menu", tint = Color.White)
             }
         }
-
-        // Transparent swipe detection layer — sits on top but passes taps through
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .pointerInput(Unit) {
-                    var startX = 0f
-                    var startY = 0f
-                    awaitEachGesture {
-                        val down = awaitFirstDown(requireUnconsumed = false)
-                        startX = down.position.x
-                        startY = down.position.y
-                        var endX = startX
-                        do {
-                            val event = awaitPointerEvent(PointerEventPass.Final)
-                            event.changes.forEach { endX = it.position.x }
-                        } while (event.changes.any { it.pressed })
-                        val deltaX = endX - startX
-                        val threshold = 80.dp.toPx()
-                        if (kotlin.math.abs(deltaX) > threshold) {
-                            if (deltaX > 0) onSwipeRight()
-                            else onSwipeLeft()
-                        }
-                    }
-                }
-        )
     }
 }
 
