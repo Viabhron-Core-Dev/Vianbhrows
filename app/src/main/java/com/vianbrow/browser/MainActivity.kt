@@ -319,7 +319,10 @@ fun AddressBar(
     onQrScan: () -> Unit
 ) {
     var isEditing by remember { mutableStateOf(false) }
-    var text by remember(isEditing, url) { mutableStateOf(if (isEditing) url else (title.takeIf { it.isNotBlank() } ?: url)) }
+    var text by remember(isEditing) { mutableStateOf(androidx.compose.ui.text.input.TextFieldValue("")) }
+    LaunchedEffect(isEditing) {
+        if (isEditing) text = androidx.compose.ui.text.input.TextFieldValue(url, selection = androidx.compose.ui.text.TextRange(0, url.length))
+    }
     val focusManager = LocalFocusManager.current
     val focusRequester = remember { FocusRequester() }
     val context = LocalContext.current
@@ -378,7 +381,7 @@ fun AddressBar(
                         onGo = {
                             focusManager.clearFocus()
                             isEditing = false
-                            val finalUrl = processUrlInput(text, context)
+                            val finalUrl = processUrlInput(text.text, context)
                             onNavigate(finalUrl)
                         }
                     ),
@@ -403,7 +406,7 @@ fun AddressBar(
                 }
             }
             isEditing -> {
-                IconButton(onClick = { text = "" }) {
+                IconButton(onClick = { text = androidx.compose.ui.text.input.TextFieldValue("") }) {
                     Icon(Icons.Default.Close, contentDescription = "Clear", tint = Color.LightGray)
                 }
             }
