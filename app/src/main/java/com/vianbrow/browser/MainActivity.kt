@@ -591,7 +591,22 @@ fun BrowserWebView(
                     override fun onPageFinished(view: WebView?, url: String?) {
                         super.onPageFinished(view, url)
                         swipeRefreshLayout.isRefreshing = false
-                        url?.let { onPageFinished(it) }
+                        url?.let {
+                            onPageFinished(it)
+                            val prefs = context.getSharedPreferences("vianbrow_settings", android.content.Context.MODE_PRIVATE)
+                            if (prefs.getBoolean("setting_dev_mode", false)) {
+                                val js = """
+                                    (function() {
+                                      var script = document.createElement('script');
+                                      script.src = 'https://cdn.jsdelivr.net/npm/eruda';
+                                      script.onload = function() { eruda.init(); };
+                                      document.head.appendChild(script);
+                                    })();
+                                """.trimIndent()
+                                view?.evaluateJavascript(js, null)
+                                VianbrowLogger.i("DevTools", "DevTools: Eruda injected for [$it]")
+                            }
+                        }
                     }
 
                     override fun onReceivedError(
