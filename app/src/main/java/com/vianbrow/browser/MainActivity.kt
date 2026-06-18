@@ -37,10 +37,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.TextStyle
@@ -182,18 +178,6 @@ fun MainScreen() {
                         )
                     } else {
                         VianbrowLogger.i("Settings", "Settings: activity is null")
-                    }
-                },
-                onSwipeRight = {
-                    if (webViewRef?.canGoBack() == true) {
-                        webViewRef?.goBack()
-                        VianbrowLogger.i("WebView", "WebView: swipe back")
-                    }
-                },
-                onSwipeLeft = {
-                    if (webViewRef?.canGoForward() == true) {
-                        webViewRef?.goForward()
-                        VianbrowLogger.i("WebView", "WebView: swipe forward")
                     }
                 }
             )
@@ -430,28 +414,12 @@ fun BottomNavBar(
     onForward: () -> Unit,
     onHome: () -> Unit,
     onTabCounter: () -> Unit,
-    onMenu: () -> Unit,
-    onSwipeRight: () -> Unit,
-    onSwipeLeft: () -> Unit
+    onMenu: () -> Unit
 ) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .background(Color.Black)
-            .pointerInput(Unit) {
-                var totalDrag = 0f
-                detectHorizontalDragGestures(
-                    onDragStart = { totalDrag = 0f },
-                    onHorizontalDrag = { _, dragAmount -> totalDrag += dragAmount },
-                    onDragEnd = {
-                        val threshold = 80.dp.toPx()
-                        if (kotlin.math.abs(totalDrag) > threshold) {
-                            if (totalDrag > 0) onSwipeRight()
-                            else onSwipeLeft()
-                        }
-                    }
-                )
-            }
             .windowInsetsPadding(WindowInsets.navigationBars)
     ) {
         Row(
