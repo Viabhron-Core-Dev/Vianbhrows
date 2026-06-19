@@ -556,6 +556,16 @@ fun BrowserWebView(
                 webViewClient = object : WebViewClient() {
                     override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                         super.onPageStarted(view, url, favicon)
+                        val gmJs = """
+                            (function() {
+                              window.GM_setValue = function(k,v){ localStorage.setItem(k, JSON.stringify(v)); };
+                              window.GM_getValue = function(k,d){ var v=localStorage.getItem(k); return v!==null?JSON.parse(v):d; };
+                              window.GM_xmlhttpRequest = function(d){ fetch(d.url,{method:d.method||'GET',headers:d.headers||{}}).then(r=>r.text()).then(t=>d.onload&&d.onload({responseText:t})).catch(e=>d.onerror&&d.onerror(e)); };
+                              window.GM_setClipboard = function(t){ navigator.clipboard&&navigator.clipboard.writeText(t); };
+                            })();
+                        """.trimIndent()
+                        view?.evaluateJavascript(gmJs, null)
+                        VianbrowLogger.i("Scripts", "Scripts: GM polyfill injected")
                         url?.let { onPageStarted(it) }
                     }
                     
@@ -564,6 +574,26 @@ fun BrowserWebView(
                         swipeRefreshLayout.isRefreshing = false
                         url?.let {
                             onPageFinished(it)
+                            val txtJs = """
+                                (function() {
+                                  if (document.getElementById('vianbrow-save-txt')) return;
+                                  var btn = document.createElement('button');
+                                  btn.id = 'vianbrow-save-txt';
+                                  btn.innerText = 'TXT';
+                                  btn.style.cssText = 'position:fixed;bottom:80px;left:8px;z-index:99999;background:#222;color:#fff;border:none;padding:6px 10px;border-radius:6px;font-size:13px;opacity:0.85;';
+                                  btn.onclick = function() {
+                                    var text = document.body.innerText;
+                                    var title = document.title.replace(/[^a-z0-9]/gi,'_').toLowerCase();
+                                    var a = document.createElement('a');
+                                    a.href = 'data:text/plain;charset=utf-8,' + encodeURIComponent(text);
+                                    a.download = title + '.txt';
+                                    a.click();
+                                  };
+                                  document.body.appendChild(btn);
+                                })();
+                            """.trimIndent()
+                            view?.evaluateJavascript(txtJs, null)
+                            VianbrowLogger.i("Scripts", "Scripts: Save as TXT injected")
                             val prefs = context.getSharedPreferences("vianbrow_settings", android.content.Context.MODE_PRIVATE)
                             if (prefs.getBoolean("setting_dev_mode", false)) {
                                 val js = """
