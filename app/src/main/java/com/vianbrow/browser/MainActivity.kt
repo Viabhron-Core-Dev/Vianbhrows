@@ -540,6 +540,13 @@ fun BrowserWebView(
             val webView = WebView(context).apply {
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
+                settings.userAgentString = "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                    settings.safeBrowsingEnabled = true
+                }
+                settings.allowFileAccess = false
+                settings.allowContentAccess = false
+                VianbrowLogger.i("WebView", "WebView: security settings applied")
                 
                 webChromeClient = object : WebChromeClient() {
                     override fun onReceivedTitle(view: WebView?, title: String?) {
@@ -609,6 +616,11 @@ fun BrowserWebView(
                                 VianbrowLogger.i("DevTools", "DevTools: Eruda injected for [$it]")
                             }
                         }
+                    }
+
+                    override fun onReceivedSslError(view: WebView?, handler: android.webkit.SslErrorHandler?, error: android.net.http.SslError?) {
+                        handler?.cancel()
+                        VianbrowLogger.e("WebView", "WebView: SSL error cancelled for [${error?.url}]")
                     }
 
                     override fun onReceivedError(
