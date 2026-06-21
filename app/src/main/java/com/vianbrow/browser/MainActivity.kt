@@ -546,6 +546,8 @@ fun BrowserWebView(
                 }
                 settings.allowFileAccess = false
                 settings.allowContentAccess = false
+                settings.mediaPlaybackRequiresUserGesture = false
+                android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
                 VianbrowLogger.i("WebView", "WebView: security settings applied")
                 
                 webChromeClient = object : WebChromeClient() {
