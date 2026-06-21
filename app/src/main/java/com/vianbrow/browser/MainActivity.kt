@@ -544,11 +544,23 @@ fun BrowserWebView(
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
                     settings.safeBrowsingEnabled = true
                 }
-                settings.allowFileAccess = false
-                settings.allowContentAccess = false
+                settings.allowFileAccess = true
+                settings.allowContentAccess = true
+                settings.allowFileAccessFromFileURLs = false
+                settings.allowUniversalAccessFromFileURLs = false
+                settings.databaseEnabled = true
+                settings.javaScriptCanOpenWindowsAutomatically = true
+                settings.setSupportMultipleWindows(true)
+                settings.setSupportZoom(true)
+                settings.builtInZoomControls = true
+                settings.displayZoomControls = false
+                settings.cacheMode = android.webkit.WebSettings.LOAD_DEFAULT
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+                    settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+                }
                 settings.mediaPlaybackRequiresUserGesture = false
                 android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
-                VianbrowLogger.i("WebView", "WebView: security settings applied")
+                VianbrowLogger.i("WebView", "WebView: settings applied v2")
                 
                 webChromeClient = object : WebChromeClient() {
                     override fun onReceivedTitle(view: WebView?, title: String?) {
