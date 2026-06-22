@@ -73,6 +73,7 @@ fun MainScreen() {
     
     var showSitePanel by remember { mutableStateOf(false) }
     var showSiteConfig by remember { mutableStateOf(false) }
+    var showMenu by remember { mutableStateOf(false) }
     
     val context = LocalContext.current
     val activity = context as? ComponentActivity
@@ -170,16 +171,7 @@ fun MainScreen() {
                 onTabCounter = {
                     Toast.makeText(context, "Tab manager coming soon", Toast.LENGTH_SHORT).show()
                 },
-                onMenu = {
-                    if (activity != null) {
-                        VianbrowLogger.i("Settings", "Settings: menu button tapped")
-                        activity.startActivity(
-                            android.content.Intent(activity, SettingsActivity::class.java)
-                        )
-                    } else {
-                        VianbrowLogger.i("Settings", "Settings: activity is null")
-                    }
-                }
+                onMenu = { showMenu = true }
             )
         },
         floatingActionButton = {
@@ -224,6 +216,41 @@ fun MainScreen() {
 
     if (showLogViewer) {
         LogViewerDialog(onDismiss = { showLogViewer = false })
+    }
+
+    if (showMenu) {
+        MenuBottomSheet(
+            onDismiss = { showMenu = false },
+            onSettings = {
+                showMenu = false
+                activity?.startActivity(android.content.Intent(activity, SettingsActivity::class.java))
+            },
+            onClearCache = {
+                showMenu = false
+                webViewRef?.clearCache(true)
+                Toast.makeText(context, "Cache cleared", Toast.LENGTH_SHORT).show()
+                VianbrowLogger.i("Menu", "Menu: cache cleared")
+            },
+            onToggleDevMode = {
+                val prefs = context.getSharedPreferences("vianbrow_settings", android.content.Context.MODE_PRIVATE)
+                val current = prefs.getBoolean("setting_dev_mode", false)
+                prefs.edit().putBoolean("setting_dev_mode", !current).apply()
+                showMenu = false
+                Toast.makeText(context, if (!current) "Dev Mode ON" else "Dev Mode OFF", Toast.LENGTH_SHORT).show()
+                VianbrowLogger.i("Menu", "Menu: dev mode toggled to ${!current}")
+            },
+            onShare = {
+                showMenu = false
+                if (currentUrl.isNotBlank()) {
+                    val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(android.content.Intent.EXTRA_TEXT, currentUrl)
+                    }
+                    context.startActivity(android.content.Intent.createChooser(intent, "Share URL"))
+                }
+                VianbrowLogger.i("Menu", "Menu: share tapped for [$currentUrl]")
+            }
+        )
     }
 
     if (showSitePanel) {
@@ -668,5 +695,63 @@ fun BrowserWebView(
             // Keep reference updated if needed
         }
     )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun MenuBottomSheet(
+    onDismiss: () -> Unit,
+    onSettings: () -> Unit,
+    onClearCache: () -> Unit,
+    onToggleDevMode: () -> Unit,
+    onShare: () -> Unit
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = Color(0xFF1A1A1A)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Text(
+                "Menu",
+                color = Color.White,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
+            // Row 1
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                MenuGridItem(icon = Icons.Default.Settings, label = "Settings", onClick = onSettings)
+                MenuGridItem(icon = Icons.Default.Delete, label = "Clear Cache", onClick = onClearCache)
+                MenuGridItem(icon = Icons.Default.Build, label = "Dev Mode", onClick = onToggleDevMode)
+                MenuGridItem(icon = Icons.Default.Share, label = "Share", onClick = onShare)
+            }
+            Spacer(modifier = Modifier.height(24.dp))
+        }
+    }
+}
+
+@Composable
+fun MenuGridItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    onClick: () -> Unit
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .clickable { onClick() }
+            .padding(8.dp)
+    ) {
+        Icon(icon, contentDescription = label, tint = Color.White, modifier = Modifier.size(28.dp))
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(label, color = Color.Gray, fontSize = 11.sp)
+    }
 }
 
