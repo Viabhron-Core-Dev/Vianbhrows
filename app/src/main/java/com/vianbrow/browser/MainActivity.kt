@@ -49,6 +49,12 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.vianbrow.browser.ui.theme.MyApplicationTheme
 
+data class Tab(
+    val id: Int,
+    var url: String = "",
+    var title: String = ""
+)
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -67,8 +73,11 @@ class MainActivity : ComponentActivity() {
 fun MainScreen() {
     var showLogViewer by remember { mutableStateOf(false) }
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
-    var currentUrl by remember { mutableStateOf("") }
-    var pageTitle by remember { mutableStateOf("") }
+    var tabs by remember { mutableStateOf(listOf(Tab(id = 0))) }
+    var activeTabId by remember { mutableStateOf(0) }
+    val activeTab = tabs.find { it.id == activeTabId } ?: tabs.first()
+    val currentUrl = activeTab.url
+    val pageTitle = activeTab.title
     var isLoading by remember { mutableStateOf(false) }
     
     var showSitePanel by remember { mutableStateOf(false) }
@@ -153,6 +162,7 @@ fun MainScreen() {
         },
         bottomBar = {
             BottomNavBar(
+                tabCount = tabs.size,
                 onBack = {
                     if (webViewRef?.canGoBack() == true) {
                         webViewRef?.goBack()
@@ -169,7 +179,10 @@ fun MainScreen() {
                     webViewRef?.loadUrl("about:blank")
                 },
                 onTabCounter = {
-                    Toast.makeText(context, "Tab manager coming soon", Toast.LENGTH_SHORT).show()
+                    val newId = (tabs.maxOfOrNull { it.id } ?: 0) + 1
+                    tabs = tabs + Tab(id = newId)
+                    activeTabId = newId
+                    VianbrowLogger.i("Tabs", "Tabs: new tab created [$newId]")
                 },
                 onMenu = { showMenu = true }
             )
@@ -188,18 +201,17 @@ fun MainScreen() {
             BrowserWebView(
                 onWebViewCreated = { webViewRef = it },
                 onPageStarted = { url ->
-                    currentUrl = if (url == "about:blank") "" else url
-                    pageTitle = ""
+                    tabs = tabs.map { if (it.id == activeTabId) it.copy(url = if (url == "about:blank") "" else url) else it }
                     isLoading = true
                     VianbrowLogger.i("WebView", "WebView: loading [$url]")
                 },
                 onPageFinished = { url ->
-                    currentUrl = if (url == "about:blank") "" else url
+                    tabs = tabs.map { if (it.id == activeTabId) it.copy(url = if (url == "about:blank") "" else url) else it }
                     isLoading = false
                     VianbrowLogger.i("WebView", "WebView: loaded [$url]")
                 },
                 onTitleChanged = { title ->
-                    pageTitle = title
+                    tabs = tabs.map { if (it.id == activeTabId) it.copy(title = title) else it }
                 },
                 onProgressChanged = { progress ->
                     if (progress == 100) {
@@ -437,6 +449,7 @@ fun AddressBar(
 
 @Composable
 fun BottomNavBar(
+    tabCount: Int,
     onBack: () -> Unit,
     onForward: () -> Unit,
     onHome: () -> Unit,
@@ -473,7 +486,7 @@ fun BottomNavBar(
                         .border(2.dp, Color.White, RoundedCornerShape(4.dp)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("1", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text(tabCount.toString(), color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
             }
             IconButton(onClick = onMenu) {
