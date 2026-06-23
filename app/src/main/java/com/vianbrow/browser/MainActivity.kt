@@ -83,6 +83,23 @@ fun MainScreen() {
     var showSitePanel by remember { mutableStateOf(false) }
     var showSiteConfig by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
+    var showTabSwitcher by remember { mutableStateOf(false) }
+    
+    val webViews = remember { mutableMapOf<Int, WebView>() }
+    val activeWebView = webViews[activeTabId]
+
+    fun switchToTab(newTabId: Int) {
+        if (newTabId == activeTabId) return
+        // Pause current tab
+        webViews[activeTabId]?.onPause()
+        webViews[activeTabId]?.pauseTimers()
+        // Switch
+        activeTabId = newTabId
+        // Resume new tab
+        webViews[newTabId]?.onResume()
+        webViews[newTabId]?.resumeTimers()
+        VianbrowLogger.i("Tabs", "Tabs: switched to tab [$newTabId]")
+    }
     
     val context = LocalContext.current
     val activity = context as? ComponentActivity
@@ -93,7 +110,7 @@ fun MainScreen() {
         if (result.resultCode == android.app.Activity.RESULT_OK) {
             val scanned = result.data?.getStringExtra("SCAN_RESULT")
             scanned?.let {
-                webViewRef?.loadUrl(processUrlInput(it, context))
+                activeWebView?.loadUrl(processUrlInput(it, context))
                 VianbrowLogger.i("QR", "QR: scanned [$scanned]")
             }
         }
@@ -104,8 +121,8 @@ fun MainScreen() {
             showSiteConfig = false
         } else if (showSitePanel) {
             showSitePanel = false
-        } else if (webViewRef?.canGoBack() == true) {
-            webViewRef?.goBack()
+        } else if (activeWebView?.canGoBack() == true) {
+            activeWebView?.goBack()
         } else {
             VianbrowLogger.i("WebView", "WebView: no back history")
             activity?.finish()
@@ -127,13 +144,13 @@ fun MainScreen() {
                     title = pageTitle,
                     isLoading = isLoading,
                     onNavigate = { url ->
-                        webViewRef?.loadUrl(url)
+                        activeWebView?.loadUrl(url)
                     },
                     onStopLoading = {
-                        webViewRef?.stopLoading()
+                        activeWebView?.stopLoading()
                     },
                     onReload = {
-                        webViewRef?.reload()
+                        activeWebView?.reload()
                     },
                     onSitePanelClick = {
                         showSitePanel = true
@@ -164,26 +181,21 @@ fun MainScreen() {
             BottomNavBar(
                 tabCount = tabs.size,
                 onBack = {
-                    if (webViewRef?.canGoBack() == true) {
-                        webViewRef?.goBack()
+                    if (activeWebView?.canGoBack() == true) {
+                        activeWebView?.goBack()
                     } else {
                         VianbrowLogger.i("WebView", "WebView: no back history")
                     }
                 },
                 onForward = {
-                    if (webViewRef?.canGoForward() == true) {
-                        webViewRef?.goForward()
+                    if (activeWebView?.canGoForward() == true) {
+                        activeWebView?.goForward()
                     }
                 },
                 onHome = {
-                    webViewRef?.loadUrl("about:blank")
+                    activeWebView?.loadUrl("about:blank")
                 },
-                onTabCounter = {
-                    val newId = (tabs.maxOfOrNull { it.id } ?: 0) + 1
-                    tabs = tabs + Tab(id = newId)
-                    activeTabId = newId
-                    VianbrowLogger.i("Tabs", "Tabs: new tab created [$newId]")
-                },
+                onTabCounter = { showTabSwitcher = true },
                 onMenu = { showMenu = true }
             )
         },
@@ -199,7 +211,10 @@ fun MainScreen() {
                 .padding(innerPadding)
         ) {
             BrowserWebView(
-                onWebViewCreated = { webViewRef = it },
+                onWebViewCreated = { webView ->
+                    webViews[activeTabId] = webView
+                    webViewRef = webView
+                },
                 onPageStarted = { url ->
                     tabs = tabs.map { if (it.id == activeTabId) it.copy(url = if (url == "about:blank") "" else url) else it }
                     isLoading = true
@@ -230,6 +245,82 @@ fun MainScreen() {
         LogViewerDialog(onDismiss = { showLogViewer = false })
     }
 
+    if (showTabSwitcher) {
+        ModalBottomSheet(
+            onDismissRequest = { showTabSwitcher = false },
+            containerColor = Color(0xFF1A1A1A)
+        ) {
+            Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Tabs", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    TextButton(onClick = {
+                        val newId = (tabs.maxOfOrNull { it.id } ?: 0) + 1
+                        tabs = tabs + Tab(id = newId)
+                        showTabSwitcher = false
+                        switchToTab(newId)
+                        webViews[newId]?.loadUrl("about:blank")
+                        VianbrowLogger.i("Tabs", "Tabs: new tab created [$newId]")
+                    }) {
+                        Text("+ New Tab", color = Color.White)
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                tabs.forEach { tab ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                showTabSwitcher = false
+                                switchToTab(tab.id)
+                            }
+                            .padding(vertical = 12.dp, horizontal = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                tab.title.ifBlank { "New Tab" },
+                                color = if (tab.id == activeTabId) Color(0xFF4CAF50) else Color.White,
+                                fontSize = 14.sp,
+                                fontWeight = if (tab.id == activeTabId) FontWeight.Bold else FontWeight.Normal,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                tab.url.ifBlank { "about:blank" },
+                                color = Color.Gray,
+                                fontSize = 12.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        if (tabs.size > 1) {
+                            IconButton(onClick = {
+                                val closingActive = tab.id == activeTabId
+                                webViews[tab.id]?.destroy()
+                                webViews.remove(tab.id)
+                                tabs = tabs.filter { it.id != tab.id }
+                                if (closingActive) {
+                                    val newActive = tabs.last().id
+                                    switchToTab(newActive)
+                                }
+                                VianbrowLogger.i("Tabs", "Tabs: closed tab [${tab.id}]")
+                            }) {
+                                Icon(Icons.Default.Close, contentDescription = "Close tab", tint = Color.Gray)
+                            }
+                        }
+                    }
+                    HorizontalDivider(color = Color.DarkGray)
+                }
+                Spacer(modifier = Modifier.height(24.dp))
+            }
+        }
+    }
+
     if (showMenu) {
         MenuBottomSheet(
             onDismiss = { showMenu = false },
@@ -239,7 +330,7 @@ fun MainScreen() {
             },
             onClearCache = {
                 showMenu = false
-                webViewRef?.clearCache(true)
+                activeWebView?.clearCache(true)
                 Toast.makeText(context, "Cache cleared", Toast.LENGTH_SHORT).show()
                 VianbrowLogger.i("Menu", "Menu: cache cleared")
             },
@@ -277,7 +368,7 @@ fun MainScreen() {
                 SiteConfigContent(
                     url = currentUrl,
                     onClearCache = {
-                        webViewRef?.clearCache(true)
+                        activeWebView?.clearCache(true)
                         Toast.makeText(context, "Cache cleared", Toast.LENGTH_SHORT).show()
                         VianbrowLogger.i("SitePanel", "SitePanel: cache cleared for [$currentUrl]")
                     },
