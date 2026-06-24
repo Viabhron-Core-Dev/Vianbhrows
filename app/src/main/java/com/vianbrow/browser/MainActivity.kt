@@ -17,6 +17,9 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -187,7 +190,21 @@ fun MainScreen() {
                     webViews[activeTabId]?.loadUrl("about:blank")
                 },
                 onTabCounter = { showTabSwitcher = true },
-                onMenu = { showMenu = true }
+                onMenu = { showMenu = true },
+                onSwipeLeft = {
+                    val currentIndex = tabs.indexOfFirst { it.id == activeTabId }
+                    if (currentIndex < tabs.size - 1) {
+                        switchToTab(tabs[currentIndex + 1].id)
+                        VianbrowLogger.i("Tabs", "Tabs: swipe left — switched to tab [${tabs[currentIndex + 1].id}]")
+                    }
+                },
+                onSwipeRight = {
+                    val currentIndex = tabs.indexOfFirst { it.id == activeTabId }
+                    if (currentIndex > 0) {
+                        switchToTab(tabs[currentIndex - 1].id)
+                        VianbrowLogger.i("Tabs", "Tabs: swipe right — switched to tab [${tabs[currentIndex - 1].id}]")
+                    }
+                }
             )
         },
         floatingActionButton = {
@@ -268,51 +285,66 @@ fun MainScreen() {
                         Text("+ New Tab", color = Color.White)
                     }
                 }
+                HorizontalDivider(color = Color.DarkGray)
                 Spacer(modifier = Modifier.height(8.dp))
                 tabs.forEach { tab ->
-                    Row(
+                    val isActive = tab.id == activeTabId
+                    Card(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .padding(vertical = 4.dp)
                             .clickable {
                                 showTabSwitcher = false
                                 switchToTab(tab.id)
-                            }
-                            .padding(vertical = 12.dp, horizontal = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                            },
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (isActive) Color(0xFF1E3A2F) else Color(0xFF2A2A2A)
+                        ),
+                        border = if (isActive) androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF4CAF50)) else null
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                tab.title.ifBlank { "New Tab" },
-                                color = if (tab.id == activeTabId) Color(0xFF4CAF50) else Color.White,
-                                fontSize = 14.sp,
-                                fontWeight = if (tab.id == activeTabId) FontWeight.Bold else FontWeight.Normal,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Text(
-                                tab.url.ifBlank { "about:blank" },
-                                color = Color.Gray,
-                                fontSize = 12.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                        if (tabs.size > 1) {
-                            IconButton(onClick = {
-                                webViews[tab.id]?.destroy()
-                                webViews.remove(tab.id)
-                                tabs = tabs.filter { it.id != tab.id }
-                                if (tab.id == activeTabId) {
-                                    activeTabId = tabs.last().id
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    tab.title.ifBlank { "New Tab" },
+                                    color = if (isActive) Color(0xFF4CAF50) else Color.White,
+                                    fontSize = 14.sp,
+                                    fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    tab.url.ifBlank { "about:blank" },
+                                    color = Color.Gray,
+                                    fontSize = 11.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            if (tabs.size > 1) {
+                                IconButton(
+                                    onClick = {
+                                        val closingActive = tab.id == activeTabId
+                                        webViews[tab.id]?.destroy()
+                                        webViews.remove(tab.id)
+                                        tabs = tabs.filter { it.id != tab.id }
+                                        if (closingActive) {
+                                            activeTabId = tabs.last().id
+                                        }
+                                        VianbrowLogger.i("Tabs", "Tabs: closed tab [${tab.id}]")
+                                    },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(Icons.Default.Close, contentDescription = "Close tab", tint = Color.Gray, modifier = Modifier.size(16.dp))
                                 }
-                                VianbrowLogger.i("Tabs", "Tabs: closed tab [${tab.id}]")
-                            }) {
-                                Icon(Icons.Default.Close, contentDescription = "Close tab", tint = Color.Gray)
                             }
                         }
                     }
-                    HorizontalDivider(color = Color.DarkGray)
                 }
                 Spacer(modifier = Modifier.height(24.dp))
             }
@@ -543,13 +575,27 @@ fun BottomNavBar(
     onForward: () -> Unit,
     onHome: () -> Unit,
     onTabCounter: () -> Unit,
-    onMenu: () -> Unit
+    onMenu: () -> Unit,
+    onSwipeLeft: () -> Unit,
+    onSwipeRight: () -> Unit
 ) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .background(Color.Black)
             .windowInsetsPadding(WindowInsets.navigationBars)
+            .pointerInput(Unit) {
+                var accumulated = 0f
+                detectHorizontalDragGestures(
+                    onDragStart = { accumulated = 0f },
+                    onHorizontalDrag = { _, dragAmount -> accumulated += dragAmount },
+                    onDragEnd = {
+                        val threshold = 80.dp.toPx()
+                        if (accumulated > threshold) onSwipeRight()
+                        else if (accumulated < -threshold) onSwipeLeft()
+                    }
+                )
+            }
     ) {
         Row(
             modifier = Modifier
